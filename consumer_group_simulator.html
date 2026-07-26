@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Kafka Consumer Group Partition Reader Simulator</title>
+<style>
+  :root {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --card-border: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent-blue: #38bdf8;
+    --accent-green: #22c55e;
+    --accent-amber: #f59e0b;
+    --accent-rose: #f43f5e;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+  body { background-color: var(--bg-color); color: var(--text-primary); padding: 20px; display: flex; flex-direction: column; gap: 20px; max-width: 1200px; margin: 0 auto; }
+  header { text-align: center; border-bottom: 1px solid var(--card-border); padding-bottom: 10px; }
+  header h1 { font-size: 1.6rem; color: var(--accent-blue); }
+  header p { color: var(--text-secondary); font-size: 0.9rem; }
+
+  /* Controls Panel */
+  .controls-panel { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center; justify-content: space-between; }
+  .control-group { display: flex; align-items: center; gap: 10px; }
+  label { font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; }
+  button { background: var(--accent-blue); color: #0f172a; font-weight: bold; cursor: pointer; border: none; padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; }
+  button:hover { opacity: 0.9; }
+  button.danger { background: var(--accent-rose); color: #fff; }
+  button.secondary { background: #334155; color: var(--text-primary); }
+
+  /* Layout */
+  .simulator-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; position: relative; }
+  .column { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+  .column-title { font-size: 0.95rem; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid var(--card-border); padding-bottom: 8px; display: flex; justify-content: space-between; }
+
+  /* Partition & Consumer Cards */
+  .entity-card { background: #090d16; border: 1px solid var(--card-border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
+  .card-header { display: flex; justify-content: space-between; font-weight: bold; }
+  
+  .message-log { display: flex; gap: 4px; overflow-x: auto; background: #050811; padding: 6px; border-radius: 4px; min-height: 32px; align-items: center; }
+  .msg-tag { background: var(--accent-blue); color: #000; font-size: 0.7rem; font-weight: bold; padding: 2px 5px; border-radius: 3px; }
+
+  .badge { padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; }
+  .badge-assigned { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+  .badge-idle { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid var(--accent-amber); }
+
+  .console-panel { background: #050811; border: 1px solid var(--card-border); border-radius: 8px; padding: 10px; font-family: monospace; font-size: 0.8rem; height: 110px; overflow-y: auto; color: var(--text-secondary); }
+  .log-entry { margin-bottom: 3px; }
+  .log-entry.system { color: var(--accent-amber); }
+  .log-entry.consume { color: var(--accent-green); }
+
+  #animation-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Kafka Consumer Group Read Mechanics</h1>
+  <p>Topic: <code>order-events</code> (4 Partitions) | Group ID: <code>order-processors</code></p>
+</header>
+
+<div class="controls-panel">
+  <div class="control-group">
+    <button id="add-consumer-btn">➕ Add Consumer Instance</button>
+    <button id="remove-consumer-btn" class="danger">➖ Crash / Remove Consumer</button>
+  </div>
+  <div class="control-group">
+    <button id="produce-btn">⚡ Produce Message Batch</button>
+  </div>
+</div>
+
+<div class="simulator-container" id="sim-container">
+  <canvas id="animation-canvas"></canvas>
+
+  <div class="column">
+    <div class="column-title" style="color: var(--accent-blue);">Topic Partitions (4)</div>
+    
+    <div class="entity-card" id="p0-card">
+      <div class="card-header"><span>Partition 0</span><span id="p0-owner" style="color: var(--accent-amber);">Assigned to: -</span></div>
+      <div class="message-log" id="p0-log"></div>
+    </div>
+
+    <div class="entity-card" id="p1-card">
+      <div class="card-header"><span>Partition 1</span><span id="p1-owner" style="color: var(--accent-amber);">Assigned to: -</span></div>
+      <div class="message-log" id="p1-log"></div>
+    </div>
+
+    <div class="entity-card" id="p2-card">
+      <div class="card-header"><span>Partition 2</span><span id="p2-owner" style="color: var(--accent-amber);">Assigned to: -</span></div>
+      <div class="message-log" id="p2-log"></div>
+    </div>
+
+    <div class="entity-card" id="p3-card">
+      <div class="card-header"><span>Partition 3</span><span id="p3-owner" style="color: var(--accent-amber);">Assigned to: -</span></div>
+      <div class="message-log" id="p3-log"></div>
+    </div>
+  </div>
+
+  <div class="column">
+    <div class="column-title" style="color: var(--accent-green);">
+      <span>Consumer Group (order-processors)</span>
+      <span id="consumer-count-tag" style="font-size: 0.8rem; color: var(--text-secondary);">Active: 2</span>
+    </div>
+    
+    <div id="consumers-list" style="display: flex; flex-direction: column; gap: 10px;">
+      </div>
+  </div>
+</div>
+
+<div class="console-panel" id="console-output">
+  <div class="log-entry system">[SYSTEM] Simulator initialized. Initializing partition assignment...</div>
+</div>
+
+<script>
+  let consumers = ['Consumer-A', 'Consumer-B'];
+  const partitionOffsets = [0, 0, 0, 0];
+  const canvas = document.getElementById('animation-canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resizeCanvas() {
+    const rect = document.getElementById('sim-container').getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  setTimeout(resizeCanvas, 100);
+
+  function log(text, type = '') {
+    const div = document.createElement('div');
+    div.className = `log-entry ${type}`;
+    div.innerText = `[${new Date().toLocaleTimeString()}] ${text}`;
+    const consoleOutput = document.getElementById('console-output');
+    consoleOutput.appendChild(div);
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+  }
+
+  // Rebalance Algorithm
+  function rebalance() {
+    log(`[REBALANCE TRIGGERED] Group members changed. Reassigning 4 partitions across ${consumers.length} consumers...`, 'system');
+    
+    const assignments = {};
+    consumers.forEach(c => assignments[c] = []);
+
+    // Round-robin assign
+    for (let p = 0; p < 4; p++) {
+      if (consumers.length > 0) {
+        const assignedConsumer = consumers[p % consumers.length];
+        assignments[assignedConsumer].push(p);
+        document.getElementById(`p${p}-owner`).innerText = `Assigned to: ${assignedConsumer}`;
+      } else {
+        document.getElementById(`p${p}-owner`).innerText = `Assigned to: NONE`;
+      }
+    }
+
+    // Render Consumers UI
+    const container = document.getElementById('consumers-list');
+    container.innerHTML = '';
+
+    consumers.forEach((c, idx) => {
+      const parts = assignments[c];
+      const card = document.createElement('div');
+      card.className = 'entity-card';
+      card.id = `consumer-card-${idx}`;
+      
+      const badgeClass = parts.length > 0 ? 'badge-assigned' : 'badge-idle';
+      const statusText = parts.length > 0 ? `Assigned: Partitions [${parts.join(', ')}]` : 'STATUS: IDLE (No Partitions)';
+
+      card.innerHTML = `
+        <div class="card-header">
+          <span style="color: var(--accent-green);">${c}</span>
+          <span class="badge ${badgeClass}">${statusText}</span>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+
+    document.getElementById('consumer-count-tag').innerText = `Active: ${consumers.length}`;
+  }
+
+  function produceAndConsume() {
+    for (let p = 0; p < 4; p++) {
+      const off = partitionOffsets[p]++;
+      const tag = document.createElement('span');
+      tag.className = 'msg-tag';
+      tag.innerText = `Off ${off}`;
+      document.getElementById(`p${p}-log`).appendChild(tag);
+
+      // Find who owns this partition
+      if (consumers.length > 0) {
+        const ownerIndex = p % consumers.length;
+        const ownerName = consumers[ownerIndex];
+        log(`[CONSUME] ${ownerName} pulled Offset #${off} from Partition ${p}`, 'consume');
+      } else {
+        log(`[WARN] Message written to Partition ${p} at Offset #${off}, but NO ACTIVE CONSUMERS available!`, 'system');
+      }
+    }
+  }
+
+  document.getElementById('add-consumer-btn').addEventListener('click', () => {
+    if (consumers.length >= 6) return alert("Max 6 consumers for simulator!");
+    const nextChar = String.fromCharCode(65 + consumers.length);
+    consumers.push(`Consumer-${nextChar}`);
+    rebalance();
+  });
+
+  document.getElementById('remove-consumer-btn').addEventListener('click', () => {
+    if (consumers.length === 0) return;
+    const removed = consumers.pop();
+    log(`[CRASH] ${removed} went down / disconnected.`, 'system');
+    rebalance();
+  });
+
+  document.getElementById('produce-btn').addEventListener('click', produceAndConsume);
+
+  // Initial Load
+  rebalance();
+</script>
+</body>
+</html>

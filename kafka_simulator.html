@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Interactive Apache Kafka Simulator</title>
+<style>
+  :root {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --card-border: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent-blue: #38bdf8;
+    --accent-green: #22c55e;
+    --accent-amber: #f59e0b;
+    --accent-purple: #a855f7;
+    --accent-rose: #f43f5e;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  body {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    border-bottom: 1px solid var(--card-border);
+    padding-bottom: 15px;
+  }
+
+  header h1 {
+    font-size: 1.8rem;
+    color: var(--accent-blue);
+    margin-bottom: 5px;
+  }
+
+  header p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+
+  /* Controls Panel */
+  .controls-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  input, select, button {
+    background: #090d16;
+    border: 1px solid var(--card-border);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    outline: none;
+  }
+
+  button {
+    background: var(--accent-blue);
+    color: #0f172a;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+  }
+
+  button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+
+  button.secondary {
+    background: #334155;
+    color: var(--text-primary);
+  }
+
+  /* Main Flow Area */
+  .kafka-cluster-container {
+    display: grid;
+    grid-template-columns: 220px 1fr 240px;
+    gap: 20px;
+    position: relative;
+  }
+
+  .column {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .column-title {
+    font-size: 1rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--card-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .title-producer { color: var(--accent-blue); }
+  .title-broker { color: var(--accent-amber); }
+  .title-consumer { color: var(--accent-green); }
+
+  /* Entities Styling */
+  .entity-card {
+    background: #090d16;
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Partition Visuals */
+  .partition-box {
+    background: #131d31;
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    padding: 10px;
+    margin-top: 5px;
+  }
+
+  .partition-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 6px;
+  }
+
+  .badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+  }
+
+  .badge-leader { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+  .badge-follower { background: rgba(148, 163, 184, 0.2); color: var(--text-secondary); border: 1px solid var(--text-secondary); }
+
+  .message-log {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    background: #090d16;
+    padding: 6px;
+    border-radius: 4px;
+    min-height: 36px;
+    align-items: center;
+  }
+
+  .msg-tag {
+    background: var(--accent-blue);
+    color: #000;
+    font-size: 0.75rem;
+    font-weight: bold;
+    padding: 3px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    animation: fadeIn 0.3s ease-in;
+  }
+
+  /* Log Console */
+  .console-panel {
+    background: #050811;
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    height: 120px;
+    overflow-y: auto;
+    color: var(--text-secondary);
+  }
+
+  .log-entry {
+    margin-bottom: 4px;
+  }
+  .log-entry.produce { color: var(--accent-blue); }
+  .log-entry.replicate { color: var(--accent-purple); }
+  .log-entry.consume { color: var(--accent-green); }
+
+  /* Canvas Layer for Animated Flying Packets */
+  #animation-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Apache Kafka Event Streaming Simulator</h1>
+  <p>Interactive end-to-end visualization: Producer &rarr; Partition Leaders &rarr; Replicas &rarr; Consumers</p>
+</header>
+
+<div class="controls-panel">
+  <div class="control-group">
+    <label for="order-key">Order Key:</label>
+    <input type="text" id="order-key" value="Order-101" style="width: 110px;">
+  </div>
+
+  <div class="control-group">
+    <label for="payload">Message Payload:</label>
+    <input type="text" id="payload" value='{"status": "PAID"}' style="width: 160px;">
+  </div>
+
+  <div class="control-group">
+    <button id="produce-btn">Publish Event</button>
+    <button id="auto-btn" class="secondary">Auto Produce: OFF</button>
+  </div>
+
+  <div class="control-group">
+    <button id="clear-btn" class="secondary">Reset Logs</button>
+  </div>
+</div>
+
+<div class="kafka-cluster-container" id="cluster-container">
+  <canvas id="animation-canvas"></canvas>
+
+  <div class="column" id="col-producers">
+    <div class="column-title title-producer">
+      <span>Producers</span>
+    </div>
+    <div class="entity-card" id="producer-node">
+      <strong style="color: var(--accent-blue);">Order Service</strong>
+      <p style="font-size: 0.75rem; color: var(--text-secondary);">Generates order events and routes them by Key hash.</p>
+    </div>
+  </div>
+
+  <div class="column" id="col-brokers">
+    <div class="column-title title-broker">
+      <span>Kafka Cluster (3 Brokers)</span>
+      <span style="font-size: 0.7rem; color: var(--text-secondary);">Topic: pizza-orders</span>
+    </div>
+
+    <div class="entity-card" id="broker-1">
+      <div style="display: flex; justify-content: space-between;">
+        <strong>Broker 1</strong>
+        <span style="font-size: 0.75rem; color: var(--text-secondary);">ID: 101</span>
+      </div>
+      <div class="partition-box" id="p0-box">
+        <div class="partition-header">
+          <span>Partition 0</span>
+          <span class="badge badge-leader" id="p0-badge">LEADER</span>
+        </div>
+        <div class="message-log" id="p0-log"></div>
+      </div>
+      <div class="partition-box" id="p1-follower-box">
+        <div class="partition-header">
+          <span>Partition 1</span>
+          <span class="badge badge-follower">FOLLOWER</span>
+        </div>
+        <div class="message-log" id="p1-replica-log"></div>
+      </div>
+    </div>
+
+    <div class="entity-card" id="broker-2">
+      <div style="display: flex; justify-content: space-between;">
+        <strong>Broker 2</strong>
+        <span style="font-size: 0.75rem; color: var(--text-secondary);">ID: 102</span>
+      </div>
+      <div class="partition-box" id="p1-box">
+        <div class="partition-header">
+          <span>Partition 1</span>
+          <span class="badge badge-leader" id="p1-badge">LEADER</span>
+        </div>
+        <div class="message-log" id="p1-log"></div>
+      </div>
+      <div class="partition-box" id="p0-follower-box">
+        <div class="partition-header">
+          <span>Partition 0</span>
+          <span class="badge badge-follower">FOLLOWER</span>
+        </div>
+        <div class="message-log" id="p0-replica-log"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="column" id="col-consumers">
+    <div class="column-title title-consumer">
+      <span>Consumer Group</span>
+    </div>
+    
+    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: -5px;">
+      Group ID: <code>kitchen-workers</code>
+    </div>
+
+    <div class="entity-card" id="consumer-a">
+      <strong style="color: var(--accent-green);">Kitchen App A</strong>
+      <span style="font-size: 0.75rem; color: var(--text-secondary);">Assigned: <strong>Partition 0</strong></span>
+      <div style="font-size: 0.75rem;">Last Offset: <span id="c-a-offset" style="color: var(--accent-amber);">-</span></div>
+    </div>
+
+    <div class="entity-card" id="consumer-b">
+      <strong style="color: var(--accent-green);">Kitchen App B</strong>
+      <span style="font-size: 0.75rem; color: var(--text-secondary);">Assigned: <strong>Partition 1</strong></span>
+      <div style="font-size: 0.75rem;">Last Offset: <span id="c-b-offset" style="color: var(--accent-amber);">-</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="console-panel" id="console-output">
+  <div class="log-entry">[SYSTEM] Kafka Event Stream Simulator initialized. Ready to produce messages...</div>
+</div>
+
+<script>
+  // State management
+  const state = {
+    p0Offset: 0,
+    p1Offset: 0,
+    autoInterval: null,
+    animating: false
+  };
+
+  // DOM Elements
+  const produceBtn = document.getElementById('produce-btn');
+  const autoBtn = document.getElementById('auto-btn');
+  const clearBtn = document.getElementById('clear-btn');
+  const consoleOutput = document.getElementById('console-output');
+  const canvas = document.getElementById('animation-canvas');
+  const ctx = canvas.getContext('2d');
+
+  // Canvas Sizing
+  function resizeCanvas() {
+    const rect = document.getElementById('cluster-container').getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  setTimeout(resizeCanvas, 100);
+
+  // Helper Logging
+  function log(text, type = '') {
+    const div = document.createElement('div');
+    div.className = `log-entry ${type}`;
+    div.innerText = `[${new Date().toLocaleTimeString()}] ${text}`;
+    consoleOutput.appendChild(div);
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+  }
+
+  // Simple string hash to determine Partition
+  function hashKey(key) {
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+      hash = key.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash) % 2; // Returns 0 or 1
+  }
+
+  // Get Element Coordinates relative to container
+  function getCenter(id) {
+    const el = document.getElementById(id);
+    const container = document.getElementById('cluster-container').getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    return {
+      x: rect.left - container.left + rect.width / 2,
+      y: rect.top - container.top + rect.height / 2
+    };
+  }
+
+  // Animate Flying Packet
+  function animatePacket(fromId, toId, color, callback) {
+    const start = getCenter(fromId);
+    const end = getCenter(toId);
+    
+    let progress = 0;
+    const speed = 0.03; // Smooth speed factor
+
+    function step() {
+      progress += speed;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (progress < 1) {
+        const x = start.x + (end.x - start.x) * progress;
+        const y = start.y + (end.y - start.y) * progress;
+
+        ctx.beginPath();
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        requestAnimationFrame(step);
+      } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (callback) callback();
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  // Main Event Publish Function
+  function produceEvent() {
+    const key = document.getElementById('order-key').value.trim() || 'Order-1';
+    const payload = document.getElementById('payload').value.trim();
+
+    // 1. Determine Partition
+    const targetPartition = hashKey(key);
+    const leaderBoxId = targetPartition === 0 ? 'p0-box' : 'p1-box';
+    const leaderLogId = targetPartition === 0 ? 'p0-log' : 'p1-log';
+    const followerBoxId = targetPartition === 0 ? 'p0-follower-box' : 'p1-follower-box';
+    const replicaLogId = targetPartition === 0 ? 'p0-replica-log' : 'p1-replica-log';
+    const consumerId = targetPartition === 0 ? 'consumer-a' : 'consumer-b';
+    const offsetSpanId = targetPartition === 0 ? 'c-a-offset' : 'c-b-offset';
+
+    log(`[PRODUCER] Hashed key "${key}" -> Target Partition ${targetPartition}`, 'produce');
+
+    // Step A: Fly from Producer -> Partition Leader
+    animatePacket('producer-node', leaderBoxId, '#38bdf8', () => {
+      // Append offset tag to Leader Log
+      const offset = targetPartition === 0 ? state.p0Offset++ : state.p1Offset++;
+      const msgTag = document.createElement('span');
+      msgTag.className = 'msg-tag';
+      msgTag.innerText = `Offset ${offset}`;
+      document.getElementById(leaderLogId).appendChild(msgTag);
+
+      log(`[LEADER Partition ${targetPartition}] Wrote msg to disk at Offset #${offset}`, 'produce');
+
+      // Step B: Replicate to Follower
+      animatePacket(leaderBoxId, followerBoxId, '#a855f7', () => {
+        const replicaTag = document.createElement('span');
+        replicaTag.className = 'msg-tag';
+        replicaTag.style.background = '#475569';
+        replicaTag.style.color = '#fff';
+        replicaTag.innerText = `Off ${offset}`;
+        document.getElementById(replicaLogId).appendChild(replicaTag);
+
+        log(`[REPLICA Partition ${targetPartition}] Synced Offset #${offset}`, 'replicate');
+
+        // Step C: Stream to Consumer
+        animatePacket(leaderBoxId, consumerId, '#22c55e', () => {
+          document.getElementById(offsetSpanId).innerText = `#${offset}`;
+          log(`[CONSUMER] Kitchen App consumed Offset #${offset} from Partition ${targetPartition}`, 'consume');
+        });
+      });
+    });
+  }
+
+  // Event Listeners
+  produceBtn.addEventListener('click', () => {
+    produceEvent();
+  });
+
+  autoBtn.addEventListener('click', () => {
+    if (state.autoInterval) {
+      clearInterval(state.autoInterval);
+      state.autoInterval = null;
+      autoBtn.innerText = 'Auto Produce: OFF';
+      autoBtn.classList.add('secondary');
+    } else {
+      state.autoInterval = setInterval(() => {
+        const randomId = Math.floor(Math.random() * 900) + 100;
+        document.getElementById('order-key').value = `Order-${randomId}`;
+        produceEvent();
+      }, 2500);
+      autoBtn.innerText = 'Auto Produce: ON';
+      autoBtn.classList.remove('secondary');
+    }
+  });
+
+  clearBtn.addEventListener('click', () => {
+    document.getElementById('p0-log').innerHTML = '';
+    document.getElementById('p1-log').innerHTML = '';
+    document.getElementById('p0-replica-log').innerHTML = '';
+    document.getElementById('p1-replica-log').innerHTML = '';
+    document.getElementById('c-a-offset').innerText = '-';
+    document.getElementById('c-b-offset').innerText = '-';
+    state.p0Offset = 0;
+    state.p1Offset = 0;
+    consoleOutput.innerHTML = '<div class="log-entry">[SYSTEM] Logs reset.</div>';
+  });
+</script>
+
+</body>
+</html>
