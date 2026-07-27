@@ -41,7 +41,7 @@ These simulators require **zero external dependencies, frameworks, or backend se
 
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/tameemsyed-k/kafka-interactive-simulator.git](https://github.com/tameemsyed-k/kafka-interactive-simulator.git)
+   git clone https://github.com/tameemsyed-k/kafka-interactive-simulator
    cd kafka-interactive-simulator
 
 Open in VS Code:
